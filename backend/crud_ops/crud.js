@@ -41,14 +41,15 @@ const getArticle = async(req,res)=>{
 const updateArticle = async(req,res)=>{
     try{
         
+       
         const updatedArticle = await Articles.findByIdAndUpdate(req.params.id,req.body,{new:true});
         if(!updatedArticle){
             return res.status(404).json({message:"Article Not Found"});
         }
         
-        res.status(200).json(newArticle);
+        res.status(200).json(updatedArticle);
     }catch(err){
-        console.err(err);
+        console.error(err);
         res.status(500).json({message:"Internal Server Error"});
     }
 }

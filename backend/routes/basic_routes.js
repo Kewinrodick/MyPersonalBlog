@@ -1,19 +1,17 @@
-const express = require('express')
-const {getAllArticles,postArticle,getArticle,updateArticle,deleteArticle} = require('../crud_ops/crud.js')
-const roleAuth = require('../security_ops/roleAuth.js')
+const express = require('express');
+const { getAllArticles, postArticle, getArticle, updateArticle, deleteArticle } = require('../crud_ops/crud.js');
+
+const requireAuth = require('../security_ops/authmiddleware.js')
 
 const router = express.Router();
 
-router.get('/',(req,res)=>getAllArticles(req,res));
-router.post('/',roleAuth(['admin']),(req,res)=>postArticle(req,res));
-router.get('/:id',(req,res)=>getArticle(req,res));
-router.put('/:id',roleAuth(['admin']),(req,res)=>updateArticle(req,res));
-router.delete('/:id',roleAuth(['admin']),(req,res)=>deleteArticle(req,res));
+// User routes
+router.get('/', getAllArticles);
+router.get('/:id', getArticle);
+
+// Admin-only routes
+router.post('/',requireAuth, postArticle);
+router.put('/:id', requireAuth, updateArticle);
+router.delete('/:id', requireAuth, deleteArticle);
+
 module.exports = router;
-
-
-
-
-
-
-

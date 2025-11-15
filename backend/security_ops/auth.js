@@ -4,9 +4,10 @@ const argon2 = require('argon2')
 
 const User = require('../module/userModule.js')
 
-const createToken = (_id,email)=>{
-    return jwt.sign({_id,email},process.env.JWT_SECRET,{expiresIn:"1d"});
-}
+const createToken = (_id, email, role) => {
+  return jwt.sign({ _id, email, role }, process.env.JWT_SECRET, { expiresIn: "1d" });
+};
+
 
 const signupUser = async(req,res)=>{
     try{
@@ -18,30 +19,40 @@ const signupUser = async(req,res)=>{
         if(!validator.isEmail(email)){
             throw new Error("Enter valid email!");
         }
-        if(!validator.isStrongPassword(password)){
-            throw new Error("Password is not strong enough!");
-        }
         
-        const exists =  await User.findOne({email});
-        console.log(exists)
-        if(exists){
-            throw new Error("Email already exists!");
+        
+        const user =  await User.findOne({email});
+
+        if(user){
+                const isMatch = await user.comparePassword(password);
+                if(!isMatch){
+                    throw new Error("Password incorrect!");
+                }
+            
+                await user.save();
+                
+                const token = createToken(user._id.toString(),user.email,user.role);
+                res.cookie("jwt",token,{
+                    httpOnly:true,
+                    sameSite:"strict",
+                    secure:true,
+                    maxAge:24*60*60*1000
+                })
+                req.user = user;
+                return res.status(200).json({
+                    message: "Logged in successfully!",
+                    user: { name: user.user_name, email: user.email},
+                    token, 
+                });
         }
         const newUser = new User({
             user_name,
             email,
-            password
+            password,
         })
         
-            if(email === "rodickkewin@gmail.com"){
-                exists.role = 'admin';
-            }
-            else{
-                exists.role = 'user';
-            }
-        
-        const newEntry = await exists.save();
-        const token = createToken(newEntry._id.toString(),newEntry.email);
+        const newEntry = await newUser.save();
+        const token = createToken(newEntry._id.toString(),newEntry.email,newEntry.role);
         
         res.cookie('jwt',token,{
             httpOnly:true,
@@ -50,22 +61,12 @@ const signupUser = async(req,res)=>{
             maxAge:24*60*60*1000
         })
 
-        res.status(201).json({
-            name:newEntry.user_name,
-            email:newEntry.email,
-            message:"User Registered successfully",
-        },token);
+        res.status(201).json({user:{name:newEntry.user_name,email:newEntry.email,role:newEntry.role},
+        });
     }catch(err){
-        if(err instanceof Error){
-            console.error(err.message);
-            res.clearCookie("jwt");
-            res.status(400).json({message:err.message})
-        }
-        else{
-            console.error(err.message);
-            res.clearCookie("jwt");
-            res.status(500).json({message:"Internal Server Error"});
-        }
+        res.clearCookie("jwt");
+        res.status(err instanceof Error ? 400 : 500).json({ message: err.message });
+       
     }
 }
 
@@ -79,46 +80,37 @@ const loginUser = async(req,res)=>{
            throw new Error("Enter valid email!");
        }
 
-        const exists = await User.findOne({email});
-        if(!exists){
+        const user = await User.findOne({email});
+        if(!user){
             throw new Error("User is not registered");
         }
         
-        const isMatch = await exists.comparePassword(password);
+        const isMatch = await user.comparePassword(password);
         if(!isMatch){
             throw new Error("Password incorrect!");
         }
+    
         
-            if(email === "rodickkewin@gmail.com"){
-                exists.role = 'admin';
-            }
-            else{
-                exists.role = 'user';
-            }
-            await exists.save();
         
-        const token = createToken(exists._id.toString(),exists.email);
+        const token = createToken(user._id.toString(),user.email,user.role);
         res.cookie("jwt",token,{
             httpOnly:true,
             sameSite:"strict",
             secure:true,
             maxAge:24*60*60*1000
         })
-
+        req.user = user;
        res.status(200).json({
         message: "Logged in successfully!",
-        user: { name: exists.user_name, email: exists   .email },
-        token, 
+        user: { name: user.user_name, email: user.email ,role: user.role },
+       
     });
     }catch(err){
-        if(err instanceof Error){
-            console.error(err.message);
-            res.clearCookie("jwt");
-            res.status(400).json({message:err.message})
-        }else{
-            console.error(err.message);
-            res.clearCookie("jwt");
-            res.status(500).json({message:"Internal Server Error"})
+        if(!res.headersSent){
+            res.clearCookie("jwt")
+            res
+                .status(err instanceof Error ?400:500)
+                .json({message:err.message})
         }
     }
 }
